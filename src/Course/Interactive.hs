@@ -83,8 +83,10 @@ data Op =
 -- /Tip:/ @putStrLn :: String -> IO ()@ -- Prints a string and then a new line to standard output.
 convertInteractive ::
   IO ()
-convertInteractive =
-  error "todo"
+convertInteractive = do
+  putStrLn "What string should I convert to upper-case?"
+  inp <- getLine
+  putStr $ toUpper <$> inp
 
 -- |
 --
@@ -111,8 +113,14 @@ convertInteractive =
 -- /Tip:/ @putStrLn :: String -> IO ()@ -- Prints a string and then a new line to standard output.
 reverseInteractive ::
   IO ()
-reverseInteractive =
-  error "todo"
+reverseInteractive = 
+  do
+    putStrLn "file to reverse?"
+    inFn <- getLine
+    putStrLn "file to reverse?"
+    outFn <- getLine
+    contents <- readFile inFn
+    writeFile outFn $ reverse contents
 
 -- |
 --

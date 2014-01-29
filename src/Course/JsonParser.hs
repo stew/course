@@ -13,6 +13,7 @@ import Course.Apply
 import Course.Applicative
 import Course.List
 import Course.Optional
+import Control.Monad
 
 -- $setup
 -- >>> :set -XOverloadedStrings
@@ -46,8 +47,19 @@ import Course.Optional
 -- True
 jsonString ::
   Parser Chars
-jsonString =
-  error "todo"
+jsonString = (is '"') *> (list valid) <* (is '"') where
+  valid = digit ||| alpha ||| hexc ||| control
+  hexc = (is '\\') *> hex
+  control = (is '\\') *> controlchar
+  controlchar = ((is '\\') *> valueParser('\\')) |||
+                ((is '/') *> valueParser('/')) |||
+                ((is '"') *> valueParser('"')) |||
+                ((is 'b') *> valueParser('\b')) |||
+                ((is 'f') *> valueParser('\f')) |||
+                ((is 'n') *> valueParser('\n')) |||
+                ((is 'r') *> valueParser('\r')) |||
+                ((is 't') *> valueParser('\t'))
+
 
 -- | Parse a JSON rational.
 --
@@ -75,8 +87,16 @@ jsonString =
 -- True
 jsonNumber ::
   Parser Rational
-jsonNumber =
-  error "todo"
+jsonNumber = result <$> orRat where
+    result Empty = undefined
+    result (Full x) = x
+    orRat = do
+       neg <- (string "-") ||| (valueParser "")
+       d1 <- digits1
+       dec <- maybeDec
+       return (readFloat (neg ++ d1 ++ dec))
+
+    maybeDec = (fbindParser (string ".") (\c -> fbindParser digits1 (\d -> valueParser (c ++ d)))) ||| (valueParser "")
 
 -- | Parse a JSON true literal.
 --
@@ -89,8 +109,7 @@ jsonNumber =
 -- True
 jsonTrue ::
   Parser Chars
-jsonTrue =
-  error "todo"
+jsonTrue = stringTok "true"
 
 -- | Parse a JSON false literal.
 --
@@ -103,8 +122,7 @@ jsonTrue =
 -- True
 jsonFalse ::
   Parser Chars
-jsonFalse =
-  error "todo"
+jsonFalse = stringTok "false"
 
 -- | Parse a JSON null literal.
 --
@@ -117,8 +135,7 @@ jsonFalse =
 -- True
 jsonNull ::
   Parser Chars
-jsonNull =
-  error "todo"
+jsonNull = stringTok "null"
 
 -- | Parse a JSON array.
 --
@@ -140,8 +157,7 @@ jsonNull =
 -- Result >< [JsonTrue,JsonString "abc",JsonArray [JsonFalse]]
 jsonArray ::
   Parser (List JsonValue)
-jsonArray =
-  error "todo"
+jsonArray = betweenSepbyComma '[' ']' jsonValue
 
 -- | Parse a JSON object.
 --
@@ -160,8 +176,12 @@ jsonArray =
 -- Result >xyz< [("key1",JsonTrue),("key2",JsonFalse)]
 jsonObject ::
   Parser Assoc
-jsonObject =
-  error "todo"
+jsonObject = betweenSepbyComma '{' '}' assocs where
+  assocs = do
+    s <- jsonString 
+    charTok ':'
+    v <- jsonValue
+    return (s,v)
 
 -- | Parse a JSON value.
 --
@@ -177,8 +197,14 @@ jsonObject =
 -- Result >< [("key1",JsonTrue),("key2",JsonArray [JsonRational False (7 % 1),JsonFalse]),("key3",JsonObject [("key4",JsonNull)])]
 jsonValue ::
   Parser JsonValue
-jsonValue =
-   error "todo"
+jsonValue = 
+  ((const JsonNull) <$> jsonNull) ||| 
+  ((const JsonTrue) <$> jsonTrue) ||| 
+  ((const JsonFalse) <$> jsonFalse) ||| 
+  (JsonArray <$> jsonArray) ||| 
+  (JsonString <$> jsonString) ||| 
+  (JsonObject <$> jsonObject) ||| 
+  ((JsonRational True) <$> jsonNumber)
 
 -- | Read a file into a JSON value.
 --

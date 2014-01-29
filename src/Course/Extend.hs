@@ -70,5 +70,5 @@ cojoin ::
   Extend f =>
   f a
   -> f (f a)
-cojoin =
-  error "todo"
+cojoin fa = (\x -> x) <<= fa
+ 

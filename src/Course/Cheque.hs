@@ -25,6 +25,7 @@ import Course.List
 import Course.Functor
 import Course.Apply
 import Course.Bind
+import Course.ListZipper
 
 -- The representation of the grouping of each exponent of one thousand. ["thousand", "million", ...]
 illion ::
@@ -210,11 +211,56 @@ showDigit Eight =
 showDigit Nine =
   "nine"
 
+maybeAnd :: Optional Chars -> Optional Chars -> Chars
+maybeAnd Empty Empty = ""
+maybeAnd (Full h) Empty = h
+maybeAnd Empty (Full t) = t
+maybeAnd (Full h) (Full t) = h ++ " and " ++ t
+
+maybeHyphen :: Optional Digit -> Optional Digit -> Optional Chars
+maybeHyphen Empty Empty = Empty
+maybeHyphen Empty (Full o) = Full $ showDigit o
+maybeHyphen (Full One) (Full o) = (Full $  showTeen o)
+maybeHyphen (Full One) Empty = Full "ten"
+maybeHyphen (Full t) Empty = Full $ "A" ++ (showDigit t) ++ (showTen t)
+maybeHyphen (Full t) (Full o) = Full $ (showTen t)  ++ "-" ++ (showDigit o)
+
+showTeen :: Digit -> Chars
+showTeen Zero = "ten"
+showTeen One = "eleven"
+showTeen Two = "twelve"
+showTeen Three = "thirteen"
+showTeen Four = "fourteen"
+showTeen Five = "fifteen"
+showTeen Six = "sixteen"
+showTeen Seven = "seventeen"
+showTeen Eight = "eighteen"
+showTeen Nine = "nineteen"
+
+nonZero :: Digit -> Optional Digit
+nonZero Zero = Empty
+nonZero x = Full x
+
+showTen :: Digit -> Chars
+showTen Zero = "your"
+showTen One = "mama"
+showTen Two = "twenty"
+showTen Three = "thirty"
+showTen Four = "forty"
+showTen Five = "fifty"
+showTen Six = "sixty"
+showTen Seven = "seventy"
+showTen Eight = "eighty"
+showTen Nine = "ninety"
+
+showD2 :: Digit -> Digit -> Optional Chars
+showD2 ten one = maybeHyphen (nonZero ten) (nonZero one)
+
+showD3 :: Digit3 -> Chars
+showD3 (Digit3 hun ten one) = maybeAnd ((\h -> h ++ " hundred") <$> (showDigit <$> nonZero hun)) (showD2 ten one)
+
 -- A data type representing one, two or three digits, which may be useful for grouping.
-data Digit3 =
-  D1 Digit
-  | D2 Digit Digit
-  | D3 Digit Digit Digit
+data Digit3 = Digit3 Digit Digit Digit
   deriving Eq
 
 -- Possibly convert a character to a digit.
@@ -318,7 +364,40 @@ fromChar _ =
 -- >>> dollars "456789123456789012345678901234567890123456789012345678901234567890.12"
 -- "four hundred and fifty-six vigintillion seven hundred and eighty-nine novemdecillion one hundred and twenty-three octodecillion four hundred and fifty-six septendecillion seven hundred and eighty-nine sexdecillion twelve quindecillion three hundred and forty-five quattuordecillion six hundred and seventy-eight tredecillion nine hundred and one duodecillion two hundred and thirty-four undecillion five hundred and sixty-seven decillion eight hundred and ninety nonillion one hundred and twenty-three octillion four hundred and fifty-six septillion seven hundred and eighty-nine sextillion twelve quintillion three hundred and forty-five quadrillion six hundred and seventy-eight trillion nine hundred and one billion two hundred and thirty-four million five hundred and sixty-seven thousand eight hundred and ninety dollars and twelve cents"
 dollars ::
-  Chars
+  [Char]
   -> Chars
-dollars =
-  error "todo"
+dollars cs = showdc $ ((findRight ('.' ==)) -<< (fromList cs')) where
+  cs' = listh cs
+  showdc IsNotZ = (showDollars $ toD3s (revdigits cs')) ++ " and zero cents"
+  showdc (IsZ z) = showDCZipper z
+
+toD3s :: List Digit -> List Digit3
+toD3s Nil = Nil
+toD3s (o :. t :. h :. r) =  (Digit3 h t o) :. toD3s r
+toD3s (o :. t :. Nil) = Digit3 Zero t o :. Nil
+toD3s (o :. Nil) = Digit3 Zero Zero o :. Nil
+
+showDollars :: List Digit3 -> Chars
+showDollars Nil = "zero dollars"
+showDollars ((Digit3 Zero Zero Zero) :. Nil) = "zero dollars"
+showDollars ((Digit3 Zero Zero One) :. Nil) = "one dollar"
+showDollars d3 = mkString $ (\(h,i) -> (showD3 h) ++ " " ++ i) <$> (zip d3 illion) where
+  mkString l = (foldLeft (++) "" l) ++ "dollars"
+
+showCents :: List Digit -> Chars
+showCents Nil = "zero cents"
+showCents (x :. Nil) = ((showD2 x Zero) ?? "zero") ++ " cents"
+showCents (x :. y :. _) = ((showD2 x y) ?? "zero") ++ " cents"
+
+digits :: Chars -> List Digit
+digits cs = foldRight comb Nil (fromChar <$> cs) where
+  comb Empty xs = xs
+  comb (Full x) xs = x :. xs
+
+revdigits :: List Char -> List Digit
+revdigits cs = foldLeft comb Nil (fromChar <$> cs) where
+  comb xs Empty = xs
+  comb xs (Full x) = x :. xs
+
+showDCZipper :: ListZipper Char -> Chars
+showDCZipper (ListZipper l _ r) = (showDollars $ toD3s $ digits l) ++ " and " ++ (showCents $ digits r)

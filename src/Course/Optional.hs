@@ -28,6 +28,13 @@ Full a ?? _ = a
 Empty <+> o = o
 k <+> _     = k
 
+cata :: (a -> b) -> b -> Optional a -> b
+cata _ b Empty = b
+cata f _ (Full a) = f a
+
+defined :: Optional a -> Bool
+defined = cata (const True) False
+
 twiceOptional :: (a -> b -> c) -> Optional a -> Optional b -> Optional c
 twiceOptional f a b = bindOptional (\aa -> mapOptional (f aa) b) a
 
